@@ -1,76 +1,85 @@
-# Backend Engineering Task: The "Smart Analytics" API
+# Crypto Agent
+Lightweight agent that analyzes crypto market data, reports trends, and helps users decide where to buy/sell. It exposes simple endpoints and uses OpenAI function-calling + streaming to combine model reasoning with deterministic data fetchers.
 
-## Objective
-We are evaluating your ability to build robust backend systems and your intuition for applying Large Language Models (LLMs) to solve real user problems.
+## HOW TO START THE APP 
+Install dependencies:
+npm install
 
-Your goal is to build a backend service that serves time-series data and uses an LLM to act as a "Data Analyst," explaining that data to the user in plain English.
+Create a .env file, copy env.example
 
-**Deadline:** 07-12-2025 23:59PM
+install dep: npm i
+run build: npm run  build
+start: npm run start:dev
 
-> **A Note on Experimentation:**
-> We value bold ideas over safe, cookie-cutter code. Feel free to "break things" or attempt extraordinary architectural decisions. We appreciate a failed, ambitious attempt (with a post-mortem on why it failed) more than a perfect but boring implementation.
+The server will run on:
+http://localhost:3000
 
----
+## Quick overview
+- API entrypoints implemented by [`BaseAgentController`](src/base-agent/base-agent.controller.ts) and extended by [`CryptoController`](src/crypto/crypto.controller.ts) to create threads and stream responses.
+- LLM integration is in [`OpenaiService`](src/openai/openai.service.ts), which streams model output and handles function calls.
+- Agent definition and system prompt live in [`cryptoAgentDefinition`](src/agents/crypto-agent/crypto.agent-def.ts).
+- Available tool functions are listed in [`cryptoAgentFunctions`](src/agents/crypto-agent/agentFunctions.ts) and implemented by processors such as [`CoinFunctionProcessor`](src/agents/crypto-agent/functions/coin/coin.function-processor.ts) and [`TrendingCoinFunctionProcessor`](src/agents/crypto-agent/functions/trending-coin/trendingCoin.function.processor.ts).
+- Thread lifecycle and SSE streaming are handled by [`BaseAgentService`](src/base-agent/base-agent.service.ts).
 
-## The Scenario
-Imagine we are building a dashboard for a user who is not data-savvy. They see a line chart, but they don't know if the trends are good, bad, or anomalous. Your backend will power both the visualization and the explanation.
+## How it feeds data to the LLM — "Why" (LLM Strategy)
+- System-first prompt: the agent uses a clear system prompt (see [`cryptoAgentDefinition`](src/agents/crypto-agent/crypto.agent-def.ts)) to set role, output rules, and available metrics. This reduces hallucination and enforces summary-first outputs.
+- Tooling + function calls: concrete data retrieval is implemented as functions (FunctionTool objects) wired into the model via [`OpenaiService.responseStreamMessage`](src/openai/openai.service.ts). The model decides when to call a function; that function returns structured JSON from deterministic APIs (CoinGecko client in [`crypto.api-client.ts`](src/agents/crypto-agent/apiClient/crypto.api-client.ts)).
+- Streaming + incremental assembly: we stream deltas to the client (SSE) while buffering function call outputs (see arg buffer logic in [`OpenaiService`](src/openai/openai.service.ts) and SSE publishing in [`BaseAgentService`](src/base-agent/base-agent.service.ts)). This keeps UX responsive and allows progressive UI updates.
+- Small, validated function payloads: function inputs are minimal (e.g., coin name), validated using utilities like [`checkProperty`](src/shared/util/checkProperty.util.ts) to avoid malformed API calls and to keep the model’s function arguments simple and predictable.
+- Deterministic post-processing: processors return JSON strings (not free-form text) so the system can combine and format results reliably before presenting them to users.
 
-### Part 1: The Data API (The "Hard" Skills)
-You may choose any dataset you like. (Examples: Crypto prices, Server CPU usage, Weather data, or Website traffic). *Bonus points for data that is realistic (contains noise, seasonality, or multiple series).*
+Referenced files and symbols:
+- [`OpenaiService`](src/openai/openai.service.ts)
+- [`BaseAgentService`](src/base-agent/base-agent.service.ts)
+- [`BaseAgentController`](src/base-agent/base-agent.controller.ts)
+- [`cryptoAgentDefinition`](src/agents/crypto-agent/crypto.agent-def.ts)
+- [`cryptoAgentFunctions`](src/agents/crypto-agent/agentFunctions.ts)
+- [`CoinFunctionProcessor`](src/agents/crypto-agent/functions/coin/coin.function-processor.ts)
+- [`TrendingCoinFunctionProcessor`](src/agents/crypto-agent/functions/trending-coin/trendingCoin.function.processor.ts)
+- [`crypto.api-client.ts`](src/agents/crypto-agent/apiClient/crypto.api-client.ts)
+- [`checkProperty`](src/shared/util/checkProperty.util.ts)
 
-**Requirements:**
-* **Ingest/Mock Data:** Create a mechanism to load or generate this time-series data.
-* **Endpoint:** Create a REST endpoint (e.g., `GET /metrics`) that returns data formatted for a frontend charting library (like Recharts or Chart.js).
-* **Filtering:** The endpoint must accept query parameters, such as:
-    * `start_date` / `end_date`
-    * `granularity` (e.g., daily, hourly)
+## Scaling to 1,000,000+ rows — Elasticsearch-first plan
+Rationale: for queries like "give me the best crypto" or "which coins are trending", you want deterministic, fast retrieval and aggregations. Elasticsearch is ideal because it supports full-text search, filters, aggregations, and scoring — so the model only receives the exact small set of results it needs.
 
-### Part 2: The Insight Engine (The "AI" Skills)
-Create an endpoint (e.g., `POST /analyze`) that looks at the same data currently being viewed and generates a text summary.
+Key steps
+- Index design
+  - Use explicit mappings, appropriate analyzers, and keyword vs text fields.
+  - Index commonly queried metrics (price, volume, market_cap, tags) and store precomputed aggregates when possible.
+- Sharding & replicas
+  - Choose shard count by expected index size and node resources; use replicas for read throughput.
+- Ingest & pipelines
+  - Use ingest pipelines to normalize data, add enrichments, and drop PII.
+  - Use data streams & ILM (hot-warm) for time-series retention and rollover.
+- Aggregations & rollups
+  - Precompute rollups (daily/weekly) and materialized aggregates for trending detection.
+  - Use ES aggregations for top-k, percentiles, correlations.
+- Candidate reduction
+  - Run precise ES queries + filters to produce a small candidate set (10–50 rows) that the LLM will evaluate.
+- Deterministic function outputs
+  - LLM calls a function that returns JSON (strict schema). The app uses that JSON to fetch full records or trigger actions (e.g., place orders).
+- Caching & hot paths
+  - Cache frequent queries/results (Redis) and use TTLs for freshness.
+- Backpressure & async
+  - Offload heavy analytics (correlation, anomaly detection) to background workers; surface quick summaries synchronously and deeper reports via async jobs.
+- Monitoring & ops
+  - Monitor search latency, recall, index size, shard health, cache hit rates, and model usage/costs.
 
-**The Challenge:**
-Raw data is heavy. You cannot simply dump 10,000 JSON rows into a prompt and hope for the best (it is slow and expensive). You must design a way to pass the *essence* of the chart to the LLM to get high-quality insights.
+## Example usage (endpoints)
+- Create thread: POST /createThread (implemented by [`BaseAgentController.createThread`](src/base-agent/base-agent.controller.ts))
+- Stream response: SSE /:threadId?message=... (see [`BaseAgentController.sendStreamMessage`](src/base-agent/base-agent.controller.ts))
+- Get messages/history: GET /messages/:threadId (see [`BaseAgentController.getMessages`](src/base-agent/base-agent.controller.ts))
 
-**The Output should answer:**
-* What is the overall trend?
-* Were there any sudden spikes or anomalies?
-* *(Optional)* Potential reasons for these changes based on the context of your data.
+## Notes
+- Keep function interfaces small and return deterministic JSON from processors. See [`CoinGptFunction`](src/agents/crypto-agent/functions/coin/coin.gpt-function.ts) and [`TrendingCoinGptFunction`](src/agents/crypto-agent/functions/trending-coin/trendingCoin.gpt-function.ts).
+- For production, secure API keys (already loaded by `ConfigModule.forRoot()` in [`AppModule`](src/app.module.ts)) and add rate-limits and auth.
 
----
+## Files to inspect
+- [src/openai/openai.service.ts](src/openai/openai.service.ts)
+- [src/agents/crypto-agent/crypto.agent-def.ts](src/agents/crypto-agent/crypto.agent-def.ts)
+- [src/agents/crypto-agent/agentFunctions.ts](src/agents/crypto-agent/agentFunctions.ts)
+- [src/agents/crypto-agent/functions/coin/coin.function-processor.ts](src/agents/crypto-agent/functions/coin/coin.function-processor.ts)
+- [src/agents/crypto-agent/functions/trending-coin/trendingCoin.function.processor.ts](src/agents/crypto-agent/functions/trending-coin/trendingCoin.function.processor.ts)
+- [src/base-agent/base-agent.service.ts](src/base-agent/base-agent.service.ts)
+- [src/base-agent/base-agent.controller.ts](src/base-agent/base-agent.controller.ts)
 
-## What We Are Looking For (Grading Criteria)
-We are grading this on two axes: Technical Execution and Product/AI Intuition.
-
-### 1. Technical Execution
-* **Architecture:** Clean separation of concerns (Routes, Controllers, Services).
-* **Data Handling:** Efficient filtering and aggregation of time-series data.
-* **Code Quality:** Type safety, error handling, and environment variable management.
-
-### 2. Product & AI Intuition (Crucial)
-* **Prompt Engineering:** How do you instruct the LLM? Do you give it a persona? Do you format the output?
-* **Context Management:** How do you handle the token limit? (e.g., Do you send every single data point, or do you calculate statistics before sending to the LLM?)
-* **Insight Quality:** Does the LLM output generic fluff ("The data went up"), or does it provide value ("Traffic spiked by 40% on weekends, suggesting a correlation with...")?
-
----
-
-## Submission Guidelines
-
-1.  **Fork & PR:** Fork this repository and open a **Pull Request** when finished.
-2.  **The Setup:** Include a `docker-compose.yml` or clear `README.md` instructions to run the server locally.
-3.  **The "Why":** A short paragraph in your PR description or README explaining your LLM Strategy.
-    * Why did you feed the data to the LLM the way you did?
-    * How would you scale this if the dataset had 1 million rows?
-
-**Questions?**
-Contact via Telegram: `@lukalortk`
-
----
-
-## Tech Stack
-* **Language:** Open to any language (Python, Node.js, Go, Rust, Java, etc.) – please use whatever you are most productive in.
-* **LLM:** OpenAI API, Anthropic, or a local model (via Ollama).
-* **Database:** SQLite, MongoDB, or simple in-memory storage is fine for this scope. We mainly use MongoDB for production
-
-## Bonus Points
-* **Multi-Series Comparison:** Can your API explain the relationship between two lines? (e.g., "CPU usage went up because Request count increased").
-* **Streaming Responses:** Streaming the LLM text back to the client for a better UX.
