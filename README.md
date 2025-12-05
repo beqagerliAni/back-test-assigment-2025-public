@@ -78,3 +78,10 @@ Key steps
 - [src/base-agent/base-agent.service.ts](src/base-agent/base-agent.service.ts)
 - [src/base-agent/base-agent.controller.ts](src/base-agent/base-agent.controller.ts)
 
+
+## Things I didn’t do because I didn’t have enough time
+- I wanted to add unit tests for the utility functions.
+- For the AI part, I planned to test function-calling logic and verify if the provided properties were valid.
+- I also wanted to add an authentication system using JWT.
+- I planned to integrate Elasticsearch because relational databases rely on traditional indexing, 
+which isn’t great for LLM-related search. Elasticsearch (with inverted indexing) fits this use case much better.
