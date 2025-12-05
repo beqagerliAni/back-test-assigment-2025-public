@@ -40,6 +40,9 @@ Referenced files and symbols:
 - [`checkProperty`](src/shared/util/checkProperty.util.ts)
 
 ## Scaling to 1,000,000+ rows — Elasticsearch-first plan
+I haven’t built any database here because I wanted to use real-life data, and for message information, OpenAPI already stores that.
+But if I had to build a database, I would use Elasticsearch based on my personal experience.
+
 Rationale: for queries like "give me the best crypto" or "which coins are trending", you want deterministic, fast retrieval and aggregations. Elasticsearch is ideal because it supports full-text search, filters, aggregations, and scoring — so the model only receives the exact small set of results it needs.
 
 Key steps
@@ -48,9 +51,6 @@ Key steps
   - Index commonly queried metrics (price, volume, market_cap, tags) and store precomputed aggregates when possible.
 - Sharding & replicas
   - Choose shard count by expected index size and node resources; use replicas for read throughput.
-- Ingest & pipelines
-  - Use ingest pipelines to normalize data, add enrichments, and drop PII.
-  - Use data streams & ILM (hot-warm) for time-series retention and rollover.
 - Aggregations & rollups
   - Precompute rollups (daily/weekly) and materialized aggregates for trending detection.
   - Use ES aggregations for top-k, percentiles, correlations.
@@ -58,12 +58,6 @@ Key steps
   - Run precise ES queries + filters to produce a small candidate set (10–50 rows) that the LLM will evaluate.
 - Deterministic function outputs
   - LLM calls a function that returns JSON (strict schema). The app uses that JSON to fetch full records or trigger actions (e.g., place orders).
-- Caching & hot paths
-  - Cache frequent queries/results (Redis) and use TTLs for freshness.
-- Backpressure & async
-  - Offload heavy analytics (correlation, anomaly detection) to background workers; surface quick summaries synchronously and deeper reports via async jobs.
-- Monitoring & ops
-  - Monitor search latency, recall, index size, shard health, cache hit rates, and model usage/costs.
 
 ## Example usage (endpoints)
 - Create thread: POST /createThread (implemented by [`BaseAgentController.createThread`](src/base-agent/base-agent.controller.ts))
