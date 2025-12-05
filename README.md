@@ -63,10 +63,11 @@ Key steps
 - Create thread: POST /createThread (implemented by [`BaseAgentController.createThread`](src/base-agent/base-agent.controller.ts))
 - Stream response: SSE /:threadId?message=... (see [`BaseAgentController.sendStreamMessage`](src/base-agent/base-agent.controller.ts))
 - Get messages/history: GET /messages/:threadId (see [`BaseAgentController.getMessages`](src/base-agent/base-agent.controller.ts))
+- Get Metrics  GET ':name/metrics'  (see [`CryptoController.:name/metrics`](src/crypto/crypto.controller.ts))
 
 ## Notes
 - Keep function interfaces small and return deterministic JSON from processors. See [`CoinGptFunction`](src/agents/crypto-agent/functions/coin/coin.gpt-function.ts) and [`TrendingCoinGptFunction`](src/agents/crypto-agent/functions/trending-coin/trendingCoin.gpt-function.ts).
-- For production, secure API keys (already loaded by `ConfigModule.forRoot()` in [`AppModule`](src/app.module.ts)) and add rate-limits and auth.
+- For production, secure API keys (already loaded by `ConfigModule.forRoot()` in [`AppModule`](src/app.module.ts))
 
 ## Files to inspect
 - [src/openai/openai.service.ts](src/openai/openai.service.ts)
