@@ -7,7 +7,6 @@ npm install
 
 Create a .env file, copy env.example
 
-install dep: npm i
 run build: npm run  build
 start: npm run start:dev
 
