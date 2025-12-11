@@ -61,8 +61,9 @@ Key steps
 ## Example usage (endpoints)
 - Create thread: POST /createThread (implemented by [`BaseAgentController.createThread`](src/base-agent/base-agent.controller.ts))
 - Stream response: SSE /:threadId?message=... (see [`BaseAgentController.sendStreamMessage`](src/base-agent/base-agent.controller.ts))
+- analyze Data: SSE analyzeData/:threadId (see [`CryptoController.analyzeData`](src/crypto/crypto.controller.ts))
 - Get messages/history: GET /messages/:threadId (see [`BaseAgentController.getMessages`](src/base-agent/base-agent.controller.ts))
-- Get Metrics  GET ':name/metrics'  (see [`CryptoController.:name/metrics`](src/crypto/crypto.controller.ts))
+- Get Metrics  GET '/crypto/:name/metrics?vs_currency=usd&start_date=2025-8-11&end_date=2025-12-13&granularity=houlry'  (see [`CryptoController.getCryptoMetrics`](src/crypto/crypto.controller.ts))
 
 ## Notes
 - Keep function interfaces small and return deterministic JSON from processors. See [`CoinGptFunction`](src/agents/crypto-agent/functions/coin/coin.gpt-function.ts) and [`TrendingCoinGptFunction`](src/agents/crypto-agent/functions/trending-coin/trendingCoin.gpt-function.ts).
@@ -77,6 +78,20 @@ Key steps
 - [src/base-agent/base-agent.service.ts](src/base-agent/base-agent.service.ts)
 - [src/base-agent/base-agent.controller.ts](src/base-agent/base-agent.controller.ts)
 
+
+
+## IMPORTANT THINKS
+
+1. Data limit: Since it’s the free plan, I can only get data from the past 365 days. Nothing older than that.
+Granularity (how detailed the data is) depends on how many days I request:
+Daily: If I ask for more than 90 days (up to 365)
+Hourly: If I ask for 2–90 days, I get a data point every hour.
+5-minute intervals: If I ask for just 1 day, I get data every 5 minutes.
+
+Filtering by dates: I can choose a start and end date to get the data I want. But for hourly data, the range can only be up to the past 90 days, and for 5-minute data, only today’s data is available.
+
+So basically, the API adjusts the detail automatically based on how big the range is, and we can’t go back further than a year. It’s pretty neat because you can still get daily, hourly, or minute-level data depending on what you need,
+2. To use analyze api first use getMetrics api so we can insert info in db
 
 ## Things I didn’t do because I didn’t have enough time
 - I wanted to add unit tests for the utility functions.
