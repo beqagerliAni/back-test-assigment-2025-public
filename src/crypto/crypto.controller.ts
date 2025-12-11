@@ -1,4 +1,10 @@
-import { Controller, Get, Param, Query, BadRequestException, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Query,
+  BadRequestException,
+} from '@nestjs/common';
 import { BaseAgentController } from 'src/base-agent/base-agent.controller';
 import { CryptoService } from './crypto.service';
 
@@ -11,13 +17,24 @@ export class CryptoController extends BaseAgentController {
   async getCryptoMetrics(
     @Param('name') name: string,
     @Query('vs_currency') vs_currency: string,
-    @Query('days', ParseIntPipe) days: number,
+    @Query('start_date') start_date: string,
+    @Query('end_date') end_date: string,
+    @Query('granularity') granularity: 'daily' | 'hourly'| 'minutely',
   ) {
     if (!name) throw new BadRequestException('Path param "name" is required');
-    if (!vs_currency) throw new BadRequestException('Query param "vs_currency" is required');
-    if (typeof days !== 'number' || isNaN(days)) throw new BadRequestException('Query param "days" must be an integer');
+    if (!vs_currency)
+      throw new BadRequestException('Query param "vs_currency" is required');
+    if (typeof start_date !== 'string')
+      throw new BadRequestException('Query param "start_date" must be an date');
+    if (typeof end_date !== 'string')
+      throw new BadRequestException('Query param "end_date" must be an date');
 
-    return await this.cryptoService.getCryptoMetrics({ name, vs_currency, days });
-   
+    return await this.cryptoService.getCryptoMetrics({
+      name,
+      vs_currency,
+      start_date,
+      end_date,
+      granularity,
+    });
   }
 }
