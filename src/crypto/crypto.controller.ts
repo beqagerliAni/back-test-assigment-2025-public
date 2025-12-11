@@ -4,9 +4,12 @@ import {
   Param,
   Query,
   BadRequestException,
+  Sse,
+  MessageEvent
 } from '@nestjs/common';
 import { BaseAgentController } from 'src/base-agent/base-agent.controller';
 import { CryptoService } from './crypto.service';
+import { Observable } from 'rxjs';
 
 @Controller('crypto')
 export class CryptoController extends BaseAgentController {
@@ -37,4 +40,11 @@ export class CryptoController extends BaseAgentController {
       granularity,
     });
   }
+  
+  @Sse('analyze/:threadId')
+    analyzeData(
+      @Param('threadId') threadId: string,
+    ): Promise<Observable<MessageEvent>> {
+      return this.cryptoService.analyzeData(threadId);
+    }
 }

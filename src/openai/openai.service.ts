@@ -33,12 +33,13 @@ export class OpenaiService {
    })
    return conversation
   }
-  async responseStreamMessage(
+  async responseStreamMessage<T>(
     message: string,
     agentDef: AgentDefinition,
     threadId: string,
-    functionCallhandler: FunctionCallHandler,
+    functionCallhandler: FunctionCallHandler<T>,
     callBacks: StreamCallbacks,
+    data: T
   ): Promise<void> {
     try {
       const argBuffers: ArgsBuffer = {};
@@ -56,7 +57,12 @@ export class OpenaiService {
           content: `Today's date is ${date}`,
         },
       ];
+      
       input.push({ role: 'user', content: message });
+      if(!(typeof  data === 'undefined')) {
+        input.push({ role: 'user', content: JSON.stringify(data)})
+      }
+
       const MAX_ROUNDS = 5;
       for (let round = 0; round < MAX_ROUNDS; round++) {
         let sawFunctionCall = false;
@@ -103,7 +109,8 @@ export class OpenaiService {
         for (const id of pendingIds) {
           const { name, args } = argBuffers[id];
           const fnName = name ?? '';
-          const output = await functionCallhandler(fnName, args);
+          // somtimes we whont to send custom data to gpt and it will be good if we can add it to
+          const output = await functionCallhandler(fnName, args, data);
           const stringData =
             typeof output === 'string' ? output : JSON.stringify(output);
           input.push({

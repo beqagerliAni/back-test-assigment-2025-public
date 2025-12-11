@@ -14,9 +14,11 @@ export abstract class BaseAgentService {
     return await this.openaiService.getMessage(threadId)
   }
 
-  async sendStreamMessage(
+  async sendStreamMessage<T>(
     message: string,
     threadId: string,
+    // additinoal data to analyze
+    data?: T
   ): Promise<Observable<MessageEvent>> {
     return new Observable((subscriber: Subscriber<MessageEvent>) => {
       // we send text with chunks but we also need to track that message in case we whont to save message in db
@@ -69,6 +71,8 @@ export abstract class BaseAgentService {
             subscriber.error(e);
           },
         },
+        // custom data that we whont gpt to analyze can be undefind
+        data
       );
     });
   }
